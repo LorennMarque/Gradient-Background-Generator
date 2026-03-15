@@ -6,7 +6,7 @@ A simple web tool to create gradient backgrounds from colored shapes (circles) w
 
 ![Example — purple glow](image.png)
 
-![Example — olive gradient](image copy.png)
+![Example — olive gradient](example3.png)
 
 ## Usage
 
