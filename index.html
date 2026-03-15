@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Background Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #eee; }
+    .app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+    .title {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      letter-spacing: 0.02em;
+    }
+    .preview-box {
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+    .canvas-wrap {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      position: relative;
+      overflow: hidden;
+    }
+    .noise-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .sample-text-wrap {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .sample-text-wrap .sample-text {
+      position: absolute;
+      font-family: "Bricolage Grotesque", system-ui, sans-serif;
+      font-size: clamp(1.5rem, 4vw, 3rem);
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: grab;
+      pointer-events: auto;
+      user-select: none;
+    }
+    .sample-text-wrap .sample-text:active { cursor: grabbing; }
+    .sample-text-wrap .sample-text.centered {
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .noise-overlay canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #canvas {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    #canvas .circle { pointer-events: auto; }
+    .circle {
+      position: absolute;
+      border-radius: 50%;
+      cursor: grab;
+      transition: box-shadow 0.15s;
+    }
+    .circle:active { cursor: grabbing; }
+    .circle:hover { box-shadow: 0 0 0 2px rgba(255,255,255,0.5); }
+    .panel {
+      width: 100%;
+      max-width: 960px;
+      background: #1a1a1a;
+      color: #eee;
+      padding: 1.25rem 1.5rem;
+      margin-top: 1rem;
+      border-radius: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+    }
+    .panel label { display: flex; align-items: center; gap: 0.5rem; }
+    .panel input[type="number"] {
+      width: 4rem;
+      padding: 0.35rem 0.5rem;
+      background: #333;
+      border: 1px solid #555;
+      color: #fff;
+      border-radius: 4px;
+    }
+    .panel button {
+      padding: 0.4rem 0.8rem;
+      background: #444;
+      border: 1px solid #666;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .panel button:hover { background: #555; }
+    .colors {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .color-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .color-item input[type="color"] {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: transparent;
+    }
+    .panel input[type="range"] {
+      width: 100px;
+      accent-color: #888;
+    }
+    .panel .param-num {
+      width: 3.5rem;
+      padding: 0.25rem 0.4rem;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1 class="title">Background Generator</h1>
+    <div class="preview-box">
+      <div class="canvas-wrap" id="canvasWrap">
+        <div id="canvas"></div>
+        <div class="noise-overlay" id="noiseOverlay"><canvas id="noiseCanvas"></canvas></div>
+      </div>
+      <div class="sample-text-wrap">
+        <div class="sample-text centered" id="sampleText">Sample text</div>
+      </div>
+    </div>
+    <div class="panel">
+      <label>
+        Background: <input type="color" id="bgColor" value="#000000">
+      </label>
+      <label>
+        Circles: <input type="number" id="count" value="8" min="1">
+      </label>
+      <button id="generate">Generate</button>
+      <label>
+        Size: <input type="range" id="size" min="20" max="400" value="80"> <input type="number" id="sizeNum" value="80" class="param-num"> px
+      </label>
+      <label>
+        Blur: <input type="range" id="blur" min="0" max="200" value="0"> <input type="number" id="blurNum" value="0" class="param-num"> px
+      </label>
+      <label>
+        Glow: <input type="range" id="glow" min="0" max="400" value="0"> <input type="number" id="glowNum" value="0" class="param-num"> px
+      </label>
+      <label>
+        Wiggle: <input type="range" id="wiggle" min="0" max="50" value="0"> <input type="number" id="wiggleNum" value="0" class="param-num"> px
+      </label>
+      <label>
+        Noise: <input type="range" id="noise" min="0" max="100" value="0"> <input type="number" id="noiseNum" value="0" class="param-num"> %
+      </label>
+      <label>
+        Text: <input type="text" id="sampleTextInput" value="Sample text" placeholder="Sample text">
+      </label>
+      <label>
+        Text color: <input type="color" id="sampleTextColor" value="#ffffff">
+      </label>
+      <button id="exportWebp">Export WebP</button>
+      <button id="copyCss">Copy CSS</button>
+      <div class="colors" id="colors"></div>
+    </div>
+  </div>
+  <script>
+    const canvasWrap = document.getElementById('canvasWrap');
+    const canvas = document.getElementById('canvas');
+    const countInput = document.getElementById('count');
+    const generateBtn = document.getElementById('generate');
+    const colorsEl = document.getElementById('colors');
+    const blurSlider = document.getElementById('blur');
+    const blurNum = document.getElementById('blurNum');
+    const sizeSlider = document.getElementById('size');
+    const sizeNum = document.getElementById('sizeNum');
+    const glowSlider = document.getElementById('glow');
+    const glowNum = document.getElementById('glowNum');
+    const noiseSlider = document.getElementById('noise');
+    const noiseNum = document.getElementById('noiseNum');
+    const noiseOverlay = document.getElementById('noiseOverlay');
+    const noiseCanvas = document.getElementById('noiseCanvas');
+    const wiggleSlider = document.getElementById('wiggle');
+    const wiggleNum = document.getElementById('wiggleNum');
+    const sampleTextEl = document.getElementById('sampleText');
+    const sampleTextInput = document.getElementById('sampleTextInput');
+    const sampleTextColor = document.getElementById('sampleTextColor');
+    const sampleTextWrap = document.querySelector('.sample-text-wrap');
+    const bgColorInput = document.getElementById('bgColor');
+    const exportWebpBtn = document.getElementById('exportWebp');
+    const copyCssBtn = document.getElementById('copyCss');
+
+    let dragCircle = null;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    function randomIn(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function setupDrag(el, container) {
+      el.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const rect = container.getBoundingClientRect();
+        const r = el.offsetWidth / 2;
+        const centerX = parseFloat(el.style.left) + r;
+        const centerY = parseFloat(el.style.top) + r;
+        dragOffsetX = e.clientX - rect.left - centerX;
+        dragOffsetY = e.clientY - rect.top - centerY;
+        dragCircle = el;
+      });
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      if (!dragCircle) return;
+      if (dragCircle.classList.contains('sample-text')) {
+        const rect = sampleTextWrap.getBoundingClientRect();
+        dragCircle.style.left = (e.clientX - rect.left - dragOffsetX) + 'px';
+        dragCircle.style.top = (e.clientY - rect.top - dragOffsetY) + 'px';
+        dragCircle.style.transform = '';
+      } else {
+        const rect = canvasWrap.getBoundingClientRect();
+        const r = dragCircle.offsetWidth / 2;
+        const centerX = e.clientX - rect.left - dragOffsetX;
+        const centerY = e.clientY - rect.top - dragOffsetY;
+        dragCircle.style.left = (centerX - r) + 'px';
+        dragCircle.style.top = (centerY - r) + 'px';
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (dragCircle) {
+        if (!dragCircle.classList.contains('sample-text')) {
+          const r = dragCircle.offsetWidth / 2;
+          dragCircle.dataset.baseLeft = String(parseFloat(dragCircle.style.left) + r);
+          dragCircle.dataset.baseTop = String(parseFloat(dragCircle.style.top) + r);
+        }
+        dragCircle = null;
+      }
+    });
+
+    sampleTextEl.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const wrapRect = sampleTextWrap.getBoundingClientRect();
+      const textRect = sampleTextEl.getBoundingClientRect();
+      if (sampleTextEl.classList.contains('centered')) {
+        sampleTextEl.classList.remove('centered');
+        sampleTextEl.style.left = (textRect.left - wrapRect.left) + 'px';
+        sampleTextEl.style.top = (textRect.top - wrapRect.top) + 'px';
+      }
+      dragOffsetX = e.clientX - textRect.left;
+      dragOffsetY = e.clientY - textRect.top;
+      dragCircle = sampleTextEl;
+    });
+
+    sampleTextInput.addEventListener('input', () => {
+      const v = sampleTextInput.value.trim();
+      sampleTextEl.textContent = v || 'Sample text';
+      sampleTextWrap.style.display = v ? '' : 'none';
+    });
+    sampleTextColor.addEventListener('input', () => {
+      sampleTextEl.style.color = sampleTextColor.value;
+    });
+    sampleTextEl.style.color = sampleTextColor.value;
+    sampleTextWrap.style.display = sampleTextInput.value.trim() ? '' : 'none';
+
+    bgColorInput.addEventListener('input', () => {
+      const c = bgColorInput.value;
+      canvasWrap.style.background = c;
+      canvasWrap.closest('.preview-box').style.background = c;
+    });
+    canvasWrap.style.background = bgColorInput.value;
+    canvasWrap.closest('.preview-box').style.background = bgColorInput.value;
+
+    function exportAsWebp() {
+      const w = canvasWrap.offsetWidth;
+      const h = canvasWrap.offsetHeight;
+      const off = document.createElement('canvas');
+      off.width = w;
+      off.height = h;
+      const ctx = off.getContext('2d');
+      ctx.fillStyle = bgColorInput.value;
+      ctx.fillRect(0, 0, w, h);
+      const blurPx = parseInt(blurNum.value, 10) || 0;
+      const glowPx = parseInt(glowNum.value, 10) || 0;
+      canvas.querySelectorAll('.circle').forEach(c => {
+        const r = c.offsetWidth / 2;
+        const x = parseFloat(c.style.left) + r;
+        const y = parseFloat(c.style.top) + r;
+        const color = c.style.background || '#888';
+        ctx.save();
+        if (glowPx) {
+          ctx.shadowColor = color;
+          ctx.shadowBlur = glowPx;
+        }
+        if (blurPx) ctx.filter = `blur(${blurPx}px)`;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+      off.toBlob((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'background.webp';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, 'image/webp', 0.95);
+    }
+
+    function buildCss() {
+      const bg = bgColorInput.value;
+      let s = `/* Background container */\n.background {\n  position: relative;\n  overflow: hidden;\n  background-color: ${bg};\n}\n\n`;
+      canvas.querySelectorAll('.circle').forEach((c, i) => {
+        const r = c.offsetWidth / 2;
+        const left = c.style.left || '0';
+        const top = c.style.top || '0';
+        const color = c.style.background || '#888';
+        const blur = blurNum.value;
+        const glow = glowNum.value;
+        s += `/* Circle ${i + 1} */\n.background .circle-${i + 1} {\n  position: absolute;\n  left: ${left};\n  top: ${top};\n  width: ${r * 2}px;\n  height: ${r * 2}px;\n  border-radius: 50%;\n  background: ${color};\n  filter: blur(${blur}px);\n  box-shadow: ${glow ? `0 0 ${glow}px ${color}` : 'none'};\n}\n\n`;
+      });
+      return s;
+    }
+
+    exportWebpBtn.addEventListener('click', exportAsWebp);
+    copyCssBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(buildCss()).then(() => { copyCssBtn.textContent = 'Copied!'; setTimeout(() => { copyCssBtn.textContent = 'Copy CSS'; }, 1500); });
+    });
+
+    function applyGlow(el, color) {
+      const px = parseInt(glowNum.value, 10) || 0;
+      el.style.boxShadow = px ? `0 0 ${px}px ${color}` : '';
+    }
+
+    function wiggleTick(t) {
+      const amount = parseInt(wiggleNum.value, 10) || 0;
+      canvas.querySelectorAll('.circle').forEach(c => {
+        if (c === dragCircle) return;
+        const r = c.offsetWidth / 2;
+        const baseX = parseFloat(c.dataset.baseLeft) ?? (parseFloat(c.style.left) + r);
+        const baseY = parseFloat(c.dataset.baseTop) ?? (parseFloat(c.style.top) + r);
+        const phaseX = parseFloat(c.dataset.phaseX) || 0;
+        const phaseY = parseFloat(c.dataset.phaseY) || 0;
+        const dx = amount ? Math.sin(t * 0.002 + phaseX) * amount : 0;
+        const dy = amount ? Math.sin(t * 0.0017 + phaseY) * amount : 0;
+        c.style.left = (baseX - r + dx) + 'px';
+        c.style.top = (baseY - r + dy) + 'px';
+      });
+    }
+
+    function wiggleLoop(t) {
+      wiggleTick(t);
+      requestAnimationFrame(wiggleLoop);
+    }
+    requestAnimationFrame(wiggleLoop);
+
+    function drawNoise() {
+      const wrap = canvasWrap;
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      if (!w || !h) return;
+      noiseCanvas.width = w;
+      noiseCanvas.height = h;
+      const ctx = noiseCanvas.getContext('2d');
+      const imageData = ctx.createImageData(w, h);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const v = Math.floor(Math.random() * 256);
+        data[i] = data[i + 1] = data[i + 2] = v;
+        data[i + 3] = 255;
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    function spawnCircles(n) {
+      canvas.innerHTML = '';
+      colorsEl.innerHTML = '';
+      const circles = [];
+      const rect = canvasWrap.getBoundingClientRect();
+      const w = rect.width || window.innerWidth;
+      const h = rect.height || window.innerHeight;
+
+      const r = Math.max(1, parseInt(sizeNum.value, 10) || 80);
+      for (let i = 0; i < n; i++) {
+        const x = randomIn(r, w - r);
+        const y = randomIn(r, h - r);
+        const hue = Math.floor(Math.random() * 360);
+        const color = `hsl(${hue}, 70%, 55%)`;
+
+        const el = document.createElement('div');
+        el.className = 'circle';
+        el.dataset.i = i;
+        el.style.width = r * 2 + 'px';
+        el.style.height = r * 2 + 'px';
+        el.style.left = (x - r) + 'px';
+        el.style.top = (y - r) + 'px';
+        el.dataset.baseLeft = String(x);
+        el.dataset.baseTop = String(y);
+        el.dataset.phaseX = String(Math.random() * Math.PI * 2);
+        el.dataset.phaseY = String(Math.random() * Math.PI * 2);
+        el.style.background = color;
+        el.style.filter = `blur(${parseInt(blurNum.value, 10) || 0}px)`;
+        applyGlow(el, color);
+        setupDrag(el, canvasWrap);
+        canvas.appendChild(el);
+        circles.push({ el, color });
+
+        const wrap = document.createElement('div');
+        wrap.className = 'color-item';
+        const picker = document.createElement('input');
+        picker.type = 'color';
+        picker.value = hslToHex(color);
+        picker.title = `Circle ${i + 1}`;
+        picker.addEventListener('input', () => {
+          const c = picker.value;
+          el.style.background = c;
+          circles[i].color = c;
+          applyGlow(el, c);
+        });
+        wrap.appendChild(picker);
+        wrap.appendChild(document.createTextNode(i + 1));
+        colorsEl.appendChild(wrap);
+      }
+
+      return circles;
+    }
+
+    function hslToHex(hsl) {
+      const m = hsl.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+      if (!m) return '#888';
+      const h = +m[1] / 360, s = +m[2] / 100, l = +m[3] / 100;
+      let r, g, b;
+      if (s === 0) r = g = b = l;
+      else {
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return '#' + [r,g,b].map(x => ('0' + Math.round(x*255).toString(16)).slice(-2)).join('');
+    }
+    function hue2rgb(p, q, t) {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    }
+
+    function syncSliderFromNum(slider, numInput) {
+      const v = parseInt(numInput.value, 10);
+      if (!isNaN(v)) slider.value = Math.max(parseInt(slider.min, 10), Math.min(parseInt(slider.max, 10), v));
+    }
+    function applySize() {
+      const r = Math.max(1, parseInt(sizeNum.value, 10) || 80);
+      canvas.querySelectorAll('.circle').forEach(c => {
+        const left = parseFloat(c.style.left);
+        const top = parseFloat(c.style.top);
+        const oldR = c.offsetWidth / 2;
+        const centerX = left + oldR;
+        const centerY = top + oldR;
+        c.dataset.baseLeft = String(centerX);
+        c.dataset.baseTop = String(centerY);
+        c.style.width = r * 2 + 'px';
+        c.style.height = r * 2 + 'px';
+        c.style.left = (centerX - r) + 'px';
+        c.style.top = (centerY - r) + 'px';
+      });
+    }
+    sizeSlider.addEventListener('input', () => {
+      sizeNum.value = sizeSlider.value;
+      applySize();
+    });
+    sizeNum.addEventListener('input', () => {
+      syncSliderFromNum(sizeSlider, sizeNum);
+      applySize();
+    });
+    function applyBlur() {
+      const blurPx = parseInt(blurNum.value, 10) || 0;
+      canvas.querySelectorAll('.circle').forEach(c => {
+        c.style.filter = `blur(${blurPx}px)`;
+      });
+    }
+    blurSlider.addEventListener('input', () => {
+      blurNum.value = blurSlider.value;
+      applyBlur();
+    });
+    blurNum.addEventListener('input', () => {
+      syncSliderFromNum(blurSlider, blurNum);
+      applyBlur();
+    });
+    glowSlider.addEventListener('input', () => {
+      glowNum.value = glowSlider.value;
+      canvas.querySelectorAll('.circle').forEach(c => applyGlow(c, c.style.background || '#888'));
+    });
+    glowNum.addEventListener('input', () => {
+      syncSliderFromNum(glowSlider, glowNum);
+      canvas.querySelectorAll('.circle').forEach(c => applyGlow(c, c.style.background || '#888'));
+    });
+    function applyNoise() {
+      const pct = parseInt(noiseNum.value, 10) || 0;
+      noiseOverlay.style.opacity = Math.max(0, pct) / 100;
+    }
+    noiseSlider.addEventListener('input', () => {
+      noiseNum.value = noiseSlider.value;
+      applyNoise();
+    });
+    noiseNum.addEventListener('input', () => {
+      syncSliderFromNum(noiseSlider, noiseNum);
+      applyNoise();
+    });
+    wiggleSlider.addEventListener('input', () => {
+      wiggleNum.value = wiggleSlider.value;
+    });
+    wiggleNum.addEventListener('input', () => {
+      syncSliderFromNum(wiggleSlider, wiggleNum);
+    });
+
+    const resizeObserver = new ResizeObserver(() => {
+      drawNoise();
+    });
+    resizeObserver.observe(canvasWrap);
+
+    generateBtn.addEventListener('click', () => {
+      const n = Math.max(1, parseInt(countInput.value, 10) || 8);
+      countInput.value = n;
+      spawnCircles(n);
+    });
+
+    sizeNum.value = sizeSlider.value;
+    glowNum.value = glowSlider.value;
+    wiggleNum.value = wiggleSlider.value;
+    noiseNum.value = noiseSlider.value;
+    drawNoise();
+    spawnCircles(parseInt(countInput.value, 10) || 8);
+  </script>
+</body>
+</html>
